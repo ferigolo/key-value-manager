@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciador de Abreviação-Valor</title>
+  <!-- Carrega o Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Define a fonte Inter como padrão, que é moderna e limpa */
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Adiciona uma fonte ao HTML para o Tailwind poder usá-la */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+  <!-- Container Principal -->
+  <div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-8">
+
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">
+      Gerenciador de Abreviação-Valor
+    </h1>
+
+    <!-- Formulário de Entrada -->
+    <form id="kv-form" class="space-y-4 mb-8">
+      <div>
+        <label for="key-input" class="block text-sm font-medium text-gray-700 mb-1">Abreviação</label>
+        <input type="text" id="key-input" placeholder="Digite a abreviação..."
+          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+          required>
+      </div>
+      <div>
+        <label for="value-input" class="block text-sm font-medium text-gray-700 mb-1">Valor</label>
+        <input type="text" id="value-input" placeholder="Digite o valor associado..."
+          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+          required>
+      </div>
+      <button type="submit" id="submit-button"
+        class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+        Adicionar Abreviação-Valor
+      </button>
+    </form>
+
+    <!-- Seção da Lista -->
+    <div>
+      <h2 class="text-2xl font-semibold text-gray-800 border-b pb-2 mb-4">
+        Itens Armazenados
+      </h2>
+      <!-- Os itens serão injetados aqui pelo JavaScript -->
+      <div id="kv-list" class="space-y-3">
+        <!-- Exemplo de item (será gerado dinamicamente) -->
+        <!-- 
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div class="mb-2 sm:mb-0 max-w-full break-words">
+                        <strong class="text-blue-700">exemplo-abreviação</strong>:
+                        <span class="text-gray-800 ml-1">exemplo-valor</span>
+                    </div>
+                    <div class="flex space-x-2 self-end sm:self-center flex-shrink-0">
+                        <button class="bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 text-sm font-medium transition">Editar</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 text-sm font-medium transition">Deletar</button>
+                    </div>
+                </div> 
+                -->
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Seletores do DOM
+      const form = document.getElementById('kv-form');
+      const keyInput = document.getElementById('key-input');
+      const valueInput = document.getElementById('value-input');
+      const listContainer = document.getElementById('kv-list');
+      const submitButton = document.getElementById('submit-button');
+
+      // Nosso "banco de dados" local
+      // Carrega do localStorage ou começa com um objeto vazio
+      let store = JSON.parse(localStorage.getItem('kvStore')) || {};
+
+      // Variável para rastrear se estamos editando uma abreviação existente
+      let editingKey = null;
+
+      /**
+       * Salva o estado atual no localStorage
+       */
+      function saveStore() {
+        localStorage.setItem('kvStore', JSON.stringify(store));
+      }
+
+      /**
+       * Renderiza a lista de itens na tela, ordenados alfabeticamente pela abreviação
+       */
+      function renderList() {
+        // Limpa a lista atual
+        listContainer.innerHTML = '';
+
+        // Pega as chaves, ordena alfabeticamente
+        const keys = Object.keys(store).sort((a, b) => a.localeCompare(b));
+
+        // Se não houver chaves, mostra uma mensagem
+        if (keys.length === 0)
+        {
+          listContainer.innerHTML = `<p id="empty-state" class="text-gray-500 text-center py-6 italic">Nenhum item adicionado ainda.</p>`;
+          return;
+        }
+
+        // Cria e anexa cada item
+        keys.forEach(key => {
+          const value = store[key];
+          const itemEl = document.createElement('div');
+          itemEl.className = 'flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200';
+
+          // Conteúdo de texto (Abreviação e Valor) - Usando textContent para segurança
+          const textDiv = document.createElement('div');
+          textDiv.className = 'mb-2 sm:mb-0 max-w-full break-words mr-4'; // Adiciona margem à direita
+
+          const keyStrong = document.createElement('strong');
+          keyStrong.className = 'text-blue-700';
+          keyStrong.textContent = key;
+
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'text-gray-800 ml-1';
+          valueSpan.textContent = `: ${value}`;
+
+          textDiv.appendChild(keyStrong);
+          textDiv.appendChild(valueSpan);
+
+          // Grupo de Botões (Editar e Deletar)
+          const btnDiv = document.createElement('div');
+          btnDiv.className = 'flex space-x-2 self-end sm:self-center flex-shrink-0';
+
+          // Botão Editar
+          const editBtn = document.createElement('button');
+          editBtn.textContent = 'Editar';
+          editBtn.className = 'bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 text-sm font-medium transition';
+          editBtn.addEventListener('click', () => handleEdit(key));
+
+          // Botão Deletar
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Deletar';
+          deleteBtn.className = 'bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 text-sm font-medium transition';
+          deleteBtn.addEventListener('click', () => handleDelete(key));
+
+          btnDiv.appendChild(editBtn);
+          btnDiv.appendChild(deleteBtn);
+
+          itemEl.appendChild(textDiv);
+          itemEl.appendChild(btnDiv);
+          listContainer.appendChild(itemEl);
+        });
+      }
+
+      /**
+       * Lida com o envio do formulário (Adicionar ou Atualizar)
+       */
+      function handleSubmit(e) {
+        e.preventDefault();
+        const key = keyInput.value.trim();
+        const value = valueInput.value.trim();
+
+        // Validação simples
+        if (!key || !value)
+        {
+          return; // Não faz nada se os campos estiverem vazios
+        }
+
+        // Se estivermos editando, a abreviação original (editingKey) é deletada
+        // para permitir a renomeação da abreviação.
+        if (editingKey && editingKey !== key)
+        {
+          delete store[editingKey];
+        }
+
+        // Adiciona ou atualiza o valor
+        store[key] = value;
+
+        // Salva e re-renderiza
+        saveStore();
+        renderList();
+
+        // Reseta o formulário e o estado de edição
+        form.reset();
+        submitButton.textContent = 'Adicionar Abreviação-Valor';
+        keyInput.disabled = false;
+        editingKey = null;
+        keyInput.focus();
+      }
+
+      /**
+       * Prepara o formulário para edição
+       */
+      function handleEdit(key) {
+        // Preenche o formulário com os dados existentes
+        keyInput.value = key;
+        valueInput.value = store[key];
+
+        // Muda o texto do botão e foca no campo de valor
+        submitButton.textContent = 'Atualizar Valor';
+        editingKey = key; // Define a abreviação que estamos editando
+        // keyInput.disabled = true; // Descomente se não quiser permitir editar a abreviação
+        valueInput.focus();
+      }
+
+      /**
+       * Deleta um item
+       */
+      function handleDelete(key) {
+        // Confirmação simples (desabilitado por padrão nas regras)
+        // if (confirm(`Tem certeza que deseja deletar a abreviação "${key}"?`)) {
+        delete store[key];
+        saveStore();
+        renderList();
+        // }
+      }
+
+      // --- Inicialização ---
+
+      // Adiciona o listener ao formulário
+      form.addEventListener('submit', handleSubmit);
+
+      // Renderiza a lista inicial ao carregar a página
+      renderList();
+    });
+  </script>
+</body>
+
+</html>
