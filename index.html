@@ -49,9 +49,24 @@
 
     <!-- Seção da Lista -->
     <div>
-      <h2 class="text-2xl font-semibold text-gray-800 border-b pb-2 mb-4">
-        Itens Armazenados
-      </h2>
+      <!-- Cabeçalho da Lista com Seletor de Ordenação -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 mb-4">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-2 sm:mb-0">
+          Itens Armazenados
+        </h2>
+        <div class="flex items-center space-x-2">
+          <label for="sort-select" class="text-sm font-medium text-gray-700 flex-shrink-0">Ordenar por:</label>
+          <select id="sort-select"
+            class="rounded-lg border border-gray-300 p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <option value="alpha-asc">Alfabética (A-Z)</option>
+            <option value="created-desc">Mais Recentes (Criação)</option>
+            <option value="created-asc">Mais Antigos (Criação)</option>
+            <option value="updated-desc">Mais Recentes (Edição)</option>
+            <option value="updated-asc">Mais Antigos (Edição)</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Os itens serão injetados aqui pelo JavaScript -->
       <div id="kv-list" class="space-y-3">
         <!-- Exemplo de item (será gerado dinamicamente) -->
@@ -80,10 +95,36 @@
       const valueInput = document.getElementById('value-input');
       const listContainer = document.getElementById('kv-list');
       const submitButton = document.getElementById('submit-button');
+      const sortSelect = document.getElementById('sort-select'); // Novo seletor
 
       // Nosso "banco de dados" local
       // Carrega do localStorage ou começa com um objeto vazio
       let store = JSON.parse(localStorage.getItem('kvStore')) || {};
+
+      // --- Migração de Dados ---
+      // Verifica se os dados estão no formato antigo (string) e os converte para o novo (objeto)
+      let needsSave = false;
+      const migrationTime = Date.now();
+      for (const key in store)
+      {
+        if (typeof store[key] === 'string')
+        {
+          const value = store[key];
+          store[key] = {
+            value: value,
+            createdAt: migrationTime, // Não podemos saber a data real, usamos a data da migração
+            updatedAt: migrationTime
+          };
+          needsSave = true;
+        }
+      }
+      // Se algum dado foi migrado, salva o novo formato no localStorage
+      if (needsSave)
+      {
+        saveStore();
+      }
+      // --- Fim da Migração ---
+
 
       // Variável para rastrear se estamos editando uma abreviação existente
       let editingKey = null;
@@ -102,36 +143,79 @@
         // Limpa a lista atual
         listContainer.innerHTML = '';
 
-        // Pega as chaves, ordena alfabeticamente
-        const keys = Object.keys(store).sort((a, b) => a.localeCompare(b));
+        // Pega a ordenação selecionada
+        const sortBy = sortSelect.value;
 
-        // Se não houver chaves, mostra uma mensagem
-        if (keys.length === 0)
+        // Converte o objeto 'store' em um array de itens para facilitar a ordenação
+        const items = Object.keys(store).map(key => {
+          return {
+            key: key,
+            value: store[key].value,
+            createdAt: store[key].createdAt,
+            updatedAt: store[key].updatedAt
+          };
+        });
+
+        // Ordena o array 'items' com base no critério selecionado
+        switch (sortBy)
+        {
+          case 'alpha-asc':
+            items.sort((a, b) => a.key.localeCompare(b.key));
+            break;
+          case 'created-desc':
+            items.sort((a, b) => b.createdAt - a.createdAt);
+            break;
+          case 'created-asc':
+            items.sort((a, b) => a.createdAt - b.createdAt);
+            break;
+          case 'updated-desc':
+            items.sort((a, b) => b.updatedAt - a.updatedAt);
+            break;
+          case 'updated-asc':
+            items.sort((a, b) => a.updatedAt - b.updatedAt);
+            break;
+          default:
+            items.sort((a, b) => a.key.localeCompare(b.key));
+        }
+
+        // Se não houver itens, mostra uma mensagem
+        if (items.length === 0)
         {
           listContainer.innerHTML = `<p id="empty-state" class="text-gray-500 text-center py-6 italic">Nenhum item adicionado ainda.</p>`;
           return;
         }
 
-        // Cria e anexa cada item
-        keys.forEach(key => {
-          const value = store[key];
+        // Cria e anexa cada item a partir do array ordenado
+        items.forEach(item => {
           const itemEl = document.createElement('div');
           itemEl.className = 'flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200';
 
-          // Conteúdo de texto (Abreviação e Valor) - Usando textContent para segurança
+          // Conteúdo de texto (abreviação, Valor e Datas)
           const textDiv = document.createElement('div');
-          textDiv.className = 'mb-2 sm:mb-0 max-w-full break-words mr-4'; // Adiciona margem à direita
+          textDiv.className = 'mb-2 sm:mb-0 max-w-full break-words mr-4';
 
+          // abreviação e Valor
+          const contentDiv = document.createElement('div');
           const keyStrong = document.createElement('strong');
           keyStrong.className = 'text-blue-700';
-          keyStrong.textContent = key;
+          keyStrong.textContent = item.key;
 
           const valueSpan = document.createElement('span');
           valueSpan.className = 'text-gray-800 ml-1';
-          valueSpan.textContent = `: ${value}`;
+          valueSpan.textContent = `: ${item.value}`;
 
-          textDiv.appendChild(keyStrong);
-          textDiv.appendChild(valueSpan);
+          contentDiv.appendChild(keyStrong);
+          contentDiv.appendChild(valueSpan);
+
+          // Informações de Data
+          const dateInfo = document.createElement('div');
+          dateInfo.className = 'text-xs text-gray-500 mt-1.5';
+          const createdDate = new Date(item.createdAt).toLocaleString('pt-BR');
+          const updatedDate = new Date(item.updatedAt).toLocaleString('pt-BR');
+          dateInfo.textContent = `Criado: ${createdDate} | Editado: ${updatedDate}`;
+
+          textDiv.appendChild(contentDiv);
+          textDiv.appendChild(dateInfo);
 
           // Grupo de Botões (Editar e Deletar)
           const btnDiv = document.createElement('div');
@@ -141,13 +225,13 @@
           const editBtn = document.createElement('button');
           editBtn.textContent = 'Editar';
           editBtn.className = 'bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 text-sm font-medium transition';
-          editBtn.addEventListener('click', () => handleEdit(key));
+          editBtn.addEventListener('click', () => handleEdit(item.key)); // Usa item.key
 
           // Botão Deletar
           const deleteBtn = document.createElement('button');
           deleteBtn.textContent = 'Deletar';
           deleteBtn.className = 'bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 text-sm font-medium transition';
-          deleteBtn.addEventListener('click', () => handleDelete(key));
+          deleteBtn.addEventListener('click', () => handleDelete(item.key)); // Usa item.key
 
           btnDiv.appendChild(editBtn);
           btnDiv.appendChild(deleteBtn);
@@ -172,15 +256,34 @@
           return; // Não faz nada se os campos estiverem vazios
         }
 
-        // Se estivermos editando, a abreviação original (editingKey) é deletada
-        // para permitir a renomeação da abreviação.
-        if (editingKey && editingKey !== key)
+        const now = Date.now();
+        let originalCreatedAt = now;
+
+        // Se estivermos editando
+        if (editingKey)
         {
-          delete store[editingKey];
+          // Preserva a data de criação original
+          originalCreatedAt = store[editingKey].createdAt;
+
+          // Se a abreviação mudou, remove a entrada antiga
+          if (editingKey !== key)
+          {
+            delete store[editingKey];
+          }
+        }
+        // Se não estiver editando, mas a abreviação já existe (sobrescrevendo)
+        else if (store[key])
+        {
+          // Preserva a data de criação original
+          originalCreatedAt = store[key].createdAt;
         }
 
-        // Adiciona ou atualiza o valor
-        store[key] = value;
+        // Adiciona ou atualiza o valor com a nova estrutura de objeto
+        store[key] = {
+          value: value,
+          createdAt: originalCreatedAt,
+          updatedAt: now
+        };
 
         // Salva e re-renderiza
         saveStore();
@@ -200,7 +303,7 @@
       function handleEdit(key) {
         // Preenche o formulário com os dados existentes
         keyInput.value = key;
-        valueInput.value = store[key];
+        valueInput.value = store[key].value; // Atualizado para ler store[key].value
 
         // Muda o texto do botão e foca no campo de valor
         submitButton.textContent = 'Atualizar Valor';
@@ -225,6 +328,9 @@
 
       // Adiciona o listener ao formulário
       form.addEventListener('submit', handleSubmit);
+
+      // Adiciona o listener ao seletor de ordenação
+      sortSelect.addEventListener('change', renderList);
 
       // Renderiza a lista inicial ao carregar a página
       renderList();
